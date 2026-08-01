@@ -22,6 +22,7 @@ use crate::{
     CURSORS_VISIBLE_FOR, ColumnarMode, DisplayDiffHunk, DisplayPoint, DisplayRow, Editor,
     EditorSettings, EditorSnapshot, GutterHoverButton, HoveredCursor, JumpData,
     PhantomDiffReviewIndicator, SelectPhase, Selection, SelectionDragState,
+    ShowContextMenuAtMouse,
     display_map::ToDisplayPoint, editor_settings::DoubleClickInMultibuffer,
     hover_popover::hover_at, mouse_context_menu, scroll::ScrollPixelOffset,
 };
