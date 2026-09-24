@@ -1,0 +1,102 @@
+name: codex-pr-55216-macos-bundle
+
+on:
+  push:
+    branches:
+      - codex-pr-55216-macos-bundle-20260924
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle-macos:
+    runs-on: macos-15
+    timeout-minutes: 180
+    env:
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Checkout PR #55216 head
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          repository: zed-industries/zed
+          ref: 2ce9202564a13a439a62d182f5d8c64bd6566781
+
+      - name: Record tested source
+        run: |
+          {
+            printf 'repository=zed-industries/zed\n'
+            printf 'commit='
+            git rev-parse HEAD
+            git show -s --format='subject=%s' HEAD
+          } | tee build-source.txt
+
+      - name: Show runner resources before build
+        run: |
+          set -euo pipefail
+          uname -a
+          uname -m
+          sw_vers
+          sysctl -n hw.ncpu
+          sysctl -n hw.memsize
+          df -h .
+          vm_stat
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Install macOS dependencies
+        run: |
+          set -euo pipefail
+          if ! command -v cmake >/dev/null 2>&1; then
+            brew install cmake
+          fi
+          rustup show active-toolchain
+          cargo --version
+          node --version
+          npm --version
+
+      - name: Select native target
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64) target=aarch64-apple-darwin ;;
+            x86_64) target=x86_64-apple-darwin ;;
+            *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          echo "TARGET=$target" >> "$GITHUB_ENV"
+          echo "Building target: $target"
+
+      - name: Build macOS release bundle
+        run: |
+          set -euo pipefail
+          set +e
+          /usr/bin/time -l ./script/bundle-mac "$TARGET" 2> >(tee build-time.txt >&2)
+          status=$?
+          set -e
+          exit "$status"
+
+      - name: Show runner resources after build
+        if: always()
+        run: |
+          set +e
+          if [ -f build-time.txt ]; then cat build-time.txt; fi
+          sysctl -n hw.ncpu
+          sysctl -n hw.memsize
+          vm_stat
+          df -h .
+          du -sh target || true
+
+      - name: Upload macOS installer artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zed-pr-55216-macos-installer
+          path: |
+            target/*/release/Zed-*.dmg
+            target/zed-remote-server-macos-*.gz
+            build-time.txt
+            build-source.txt
+          if-no-files-found: warn
